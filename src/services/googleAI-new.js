@@ -1,4 +1,5 @@
 // services/googleAI.js
+import config from '../utils/envConfig';
 
 /**
  * Service class for integrating with Google's Generative AI (Gemini)
@@ -8,12 +9,16 @@ class GoogleAIService {
      * Constructor
      * @param {string} apiKey - Google AI API key
      */
-    constructor(apiKey) {
+    constructor(apiKey = config.apiKey) {
       this.apiKey = apiKey;
-      this.useMock = !apiKey;
+      this.useMock = !apiKey || config.mockEnabled;
+      this.isInitialized = false;
       
       if (!this.useMock) {
-        this.initializeGemini();
+        this.initializeGemini().catch(error => {
+          console.error('Failed to initialize Gemini API:', error);
+          this.useMock = true;
+        });
       } else {
         console.log('Using mock Gemini implementation (no API key provided)');
       }
@@ -30,12 +35,32 @@ class GoogleAIService {
         
         this.genAI = new GoogleGenerativeAI(this.apiKey);
         this.model = this.genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+        this.isInitialized = true;
         console.log('Gemini API initialized successfully');
       } catch (error) {
+        this.isInitialized = false;
         console.error('Failed to initialize Gemini API:', error);
         this.useMock = true;
         console.log('Falling back to mock implementation');
+        throw error; // Rethrow for handling by caller
       }
+    }
+  
+    /**
+     * Check if the service is ready to use
+     * @returns {Promise<boolean>} - True if ready or mock mode enabled
+     */
+    async isReady() {
+      if (this.useMock) return true;
+      if (!this.isInitialized) {
+        try {
+          await this.initializeGemini();
+          return true;
+        } catch (error) {
+          return false;
+        }
+      }
+      return true;
     }
   
     /**
@@ -45,6 +70,11 @@ class GoogleAIService {
      */
     async generateCampaignPlan(campaignData) {
       try {
+        // Ensure the service is ready
+        if (!await this.isReady()) {
+          throw new Error('Service not initialized');
+        }
+        
         if (this.useMock) {
           console.log('Using mock data generator');
           return this.generateMockResponse(campaignData);
@@ -77,6 +107,11 @@ class GoogleAIService {
             ]
           });
           
+          // Check for error response
+          if (!result || !result.response) {
+            throw new Error('Empty response received from Gemini API');
+          }
+          
           console.log('Received response from Gemini');
           const response = result.response;
           const text = response.text();
@@ -89,7 +124,11 @@ class GoogleAIService {
           return this.normalizeResponseStructure(parsedResponse);
         } catch (error) {
           console.error('Error generating campaign plan:', error);
-          throw error;
+          // Add specific error info
+          throw Object.assign(
+            new Error(`Failed to generate campaign plan: ${error.message}`), 
+            { originalError: error, cause: 'API_ERROR' }
+          );
         }
       } catch (error) {
         console.error('Error in generateCampaignPlan:', error);

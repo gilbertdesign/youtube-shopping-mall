@@ -3,30 +3,26 @@
   <div class="app">
     <HamburgerMenu />
     <div class="main-content">
-      <router-view />
+      <ErrorBoundary>
+        <router-view v-slot="{ Component }">
+          <transition name="fade" mode="out-in">
+            <component :is="Component" />
+          </transition>
+        </router-view>
+      </ErrorBoundary>
     </div>
   </div>
 </template>
 
 <script>
 import HamburgerMenu from './components/HamburgerMenu.vue';
-import { useRouter } from 'vue-router';
-import { onMounted } from 'vue';
+import ErrorBoundary from './components/ErrorBoundary.vue';
 
 export default {
   name: 'App',
   components: {
-    HamburgerMenu
-  },
-  setup() {
-    const router = useRouter();
-    
-    onMounted(() => {
-      // Redirect to home route if at root path
-      if (router.currentRoute.value.path === '/') {
-        router.push('/home');
-      }
-    });
+    HamburgerMenu,
+    ErrorBoundary
   }
 };
 </script>
@@ -65,6 +61,17 @@ body {
   padding: 20px;
   transition: margin-left 0.3s ease;
   padding-top: 20px;
+}
+
+/* Page transition effects */
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.3s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
 }
 
 /* Responsive styles */
