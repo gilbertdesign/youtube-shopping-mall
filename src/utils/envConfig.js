@@ -10,7 +10,7 @@ const defaults = {
   isDevelopment: import.meta.env.DEV,
   isProduction: import.meta.env.PROD,
   baseUrl: import.meta.env.BASE_URL || '/',
-  mockEnabled: true, // Enable mock mode by default if no API key
+  mockEnabled: false, // Changed default to false to prioritize real API
   version: '1.0.0'
 };
 
@@ -20,7 +20,8 @@ const config = {
   isDevelopment: defaults.isDevelopment,
   isProduction: defaults.isProduction,
   baseUrl: defaults.baseUrl,
-  mockEnabled: !import.meta.env.VITE_GOOGLE_AI_API_KEY || defaults.mockEnabled,
+  // Only enable mock mode if explicitly set or no API key is available
+  mockEnabled: import.meta.env.VITE_FORCE_MOCK === 'true' || !import.meta.env.VITE_GOOGLE_AI_API_KEY,
   version: defaults.version
 };
 
@@ -28,9 +29,16 @@ const config = {
 const validateConfig = () => {
   const warnings = [];
   
-  if (!config.apiKey && config.isProduction) {
-    warnings.push('No API key provided for production environment. Mock mode will be used.');
+  if (!config.apiKey) {
+    warnings.push('No API key provided. Mock mode will be used.');
   }
+  
+  console.log('[Config] Environment configuration loaded:', {
+    hasApiKey: !!config.apiKey,
+    mockEnabled: config.mockEnabled,
+    isDevelopment: config.isDevelopment,
+    apiKeyLength: config.apiKey ? config.apiKey.length : 0
+  });
   
   // Log any warnings
   warnings.forEach(warning => console.warn(`[Config Warning] ${warning}`));

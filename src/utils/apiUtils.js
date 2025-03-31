@@ -59,15 +59,40 @@ function getEstimatedPrice(productType) {
    */
   function getRecommendedCreatorTypes(productType) {
     const creatorTypes = {
-      'electronics': ['Tech reviewers', 'Unboxing channels', 'Tutorial creators'],
-      'clothing': ['Fashion influencers', 'Style vloggers', 'Lifestyle creators'],
-      'beauty': ['Beauty gurus', 'Makeup artists', 'Skincare experts'],
-      'home': ['Home decor channels', 'DIY creators', 'Lifestyle vloggers'],
-      'food': ['Cooking channels', 'Food reviewers', 'Recipe creators'],
-      'unknown': ['Lifestyle creators', 'Review channels', 'Vloggers']
+      'electronics': ['Tech Review Channels', 'Unboxing Specialists', 'Technology Educators', 'Gadget Comparison Channels', 'Early Adopter Communities'],
+      'clothing': ['Fashion & Style Channels', 'Lookbook Creators', 'Sustainable Fashion Educators', 'Outfit Inspiration Channels', 'Fashion Commentary Channels'],
+      'beauty': ['Makeup Tutorial Channels', 'Skincare Review Specialists', 'Beauty Product Testers', 'Cosmetic Education Channels', 'Beauty Trend Analysts'],
+      'home': ['Interior Design Channels', 'Home Organization Specialists', 'DIY Home Improvement Creators', 'Smart Home Technology Reviewers', 'Home Decor Inspiration Channels'],
+      'food': ['Recipe Development Channels', 'Cooking Tutorial Creators', 'Culinary Review Channels', 'Food Science Educators', 'Kitchen Gadget Review Specialists'],
+      'fitness': ['Workout Tutorial Channels', 'Fitness Equipment Reviewers', 'Nutrition Education Specialists', 'Wellness Journey Documenters', 'Athletic Performance Coaches'],
+      'gaming': ['Game Review Channels', 'Let\'s Play Creators', 'Gaming Hardware Reviewers', 'eSports Commentary Channels', 'Game Strategy Educators'],
+      'unknown': ['Product Review Channels', 'Lifestyle Content Creators', 'Educational How-To Channels', 'Consumer Advocacy Channels', 'Trend Analysis Channels']
     };
     
-    return creatorTypes[productType] || ['Lifestyle creators', 'Review channels', 'Vloggers'];
+    let productCategory = 'unknown';
+    
+    // Try to match the product type to one of our categories
+    if (typeof productType === 'string') {
+      const lcProductType = productType.toLowerCase();
+      
+      if (lcProductType.includes('tech') || lcProductType.includes('electronic') || lcProductType.includes('gadget') || lcProductType.includes('computer') || lcProductType.includes('phone')) {
+        productCategory = 'electronics';
+      } else if (lcProductType.includes('cloth') || lcProductType.includes('apparel') || lcProductType.includes('fashion') || lcProductType.includes('wear') || lcProductType.includes('shoes')) {
+        productCategory = 'clothing';
+      } else if (lcProductType.includes('beauty') || lcProductType.includes('makeup') || lcProductType.includes('cosmetic') || lcProductType.includes('skin') || lcProductType.includes('hair')) {
+        productCategory = 'beauty';
+      } else if (lcProductType.includes('home') || lcProductType.includes('decor') || lcProductType.includes('furniture') || lcProductType.includes('kitchen') || lcProductType.includes('house')) {
+        productCategory = 'home';
+      } else if (lcProductType.includes('food') || lcProductType.includes('cook') || lcProductType.includes('meal') || lcProductType.includes('recipe') || lcProductType.includes('snack')) {
+        productCategory = 'food';
+      } else if (lcProductType.includes('fitness') || lcProductType.includes('exercise') || lcProductType.includes('workout') || lcProductType.includes('gym') || lcProductType.includes('sport')) {
+        productCategory = 'fitness';
+      } else if (lcProductType.includes('game') || lcProductType.includes('gaming') || lcProductType.includes('console') || lcProductType.includes('play')) {
+        productCategory = 'gaming';
+      }
+    }
+    
+    return creatorTypes[productCategory] || creatorTypes['unknown'];
   }
   
   /**
@@ -270,9 +295,7 @@ function getEstimatedPrice(productType) {
               estimatedPrice: jsonData.priceRange || 'Varies',
               targetDemographic: jsonData.targetDemographic || 'General audience',
               keyFeatures: jsonData.keyFeatures || [],
-              recommendedCreatorTypes: (jsonData.recommendedCreators || []).map(creator => 
-                creator.name || 'Unknown creator'
-              ),
+              recommendedCreatorTypes: getRecommendedCreatorTypes(jsonData.category),
               suggestedContentStyles: jsonData.recommendedContentTypes || [],
               recommendedCreators: (jsonData.recommendedCreators || []).map(creator => ({
                 name: creator.name || 'Unknown creator',
@@ -454,10 +477,8 @@ function getEstimatedPrice(productType) {
         }
       }
       
-      // Create creator types from the actual creator names
-      const creatorTypes = creators.map(creator => {
-        return `${creator.name} (${creator.subscribers})`;
-      });
+      // Use our helper function to get appropriate creator types based on category
+      const creatorTypes = getRecommendedCreatorTypes(category);
       
       // Ensure we have some content types
       if (contentTypes.length === 0) {
@@ -478,8 +499,8 @@ function getEstimatedPrice(productType) {
           estimatedPrice: price,
           targetDemographic: demographic,
           keyFeatures: features,
-          recommendedCreatorTypes: creatorTypes.slice(0, 3),
-          suggestedContentStyles: contentTypes.slice(0, 3),
+          recommendedCreatorTypes: creatorTypes,
+          suggestedContentStyles: contentTypes,
           recommendedCreators: creators,
           rawAnalysis: analysisText
         }
@@ -554,7 +575,7 @@ function getEstimatedPrice(productType) {
           estimatedPrice: 'Varies',
           targetDemographic: 'General audience',
           keyFeatures: ['Quality', 'Value', 'Design', 'Functionality', 'Performance'],
-          recommendedCreatorTypes: ['Review channels', 'Lifestyle vloggers', 'How-to channels'],
+          recommendedCreatorTypes: getRecommendedCreatorTypes('unknown'),
           suggestedContentStyles: ['Reviews', 'Tutorials', 'Day-in-the-life videos']
         }
       };

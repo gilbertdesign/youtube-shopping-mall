@@ -7,6 +7,49 @@
           <h2>{{ campaignData.campaignName }}</h2>
         </div>
         
+        <!-- Strategy Summary Card - NEW SECTION -->
+        <div class="response-card strategy-summary-card" v-if="campaignInputs">
+          <h3>Campaign Strategy</h3>
+          
+          <div class="strategy-summary">
+            <div class="strategy-item">
+              <div class="strategy-label">
+                <span class="strategy-icon">🎯</span>
+                Your Goals:
+              </div>
+              <div class="strategy-value">{{ truncateText(campaignInputs.goals, 150) }}</div>
+            </div>
+            
+            <div class="strategy-item">
+              <div class="strategy-label">
+                <span class="strategy-icon">💰</span>
+                Budget:
+              </div>
+              <div class="strategy-value">{{ campaignInputs.budget }}</div>
+              <div class="strategy-note" v-if="budgetRecommendation">
+                {{ budgetRecommendation }}
+              </div>
+            </div>
+            
+            <div class="strategy-item">
+              <div class="strategy-label">
+                <span class="strategy-icon">⏱️</span>
+                Timeline:
+              </div>
+              <div class="strategy-value">{{ campaignInputs.timeline }}</div>
+            </div>
+            
+            <div class="strategy-recommendations">
+              <h4>Strategic Approach</h4>
+              <ul class="strategy-points">
+                <li v-for="(point, index) in strategyPoints" :key="'strategy-'+index">
+                  {{ point }}
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+        
         <!-- Video Ideas Card -->
         <div class="response-card">
           <h3>YouTube Video Ideas</h3>
@@ -63,7 +106,7 @@
                     </div>
                     <div class="stat-item">
                       <span class="stat-icon">👁️</span>
-                      <span class="stat-value">{{ creator.averageViews || 'Unknown' }} avg. views</span>
+                      <span class="stat-value">{{ creator.averageViews || 'Unknown' }} views</span>
                     </div>
                   </div>
                 </div>
@@ -121,7 +164,7 @@
                   </div>
                   <div class="stat-item">
                     <span class="stat-icon">👁️</span>
-                    <span class="stat-value">{{ creator.averageViews || 'Unknown' }} avg. views</span>
+                    <span class="stat-value">{{ creator.averageViews || 'Unknown' }} views</span>
                   </div>
                 </div>
               </div>
@@ -182,6 +225,10 @@
           creatorCategories: [],
           recommendedCreators: []
         })
+      },
+      campaignInputs: {
+        type: Object,
+        default: null
       }
     },
     emits: ['contact-creator'],
@@ -202,6 +249,74 @@
           });
         }
       };
+      
+      // Get budget recommendation based on budget range
+      const budgetRecommendation = computed(() => {
+        if (!props.campaignInputs?.budget) return null;
+        
+        const budget = props.campaignInputs.budget;
+        if (budget.includes('$1,000 - $5,000')) {
+          return 'Ideal for micro-influencers (50K-200K subscribers)';
+        } else if (budget.includes('$5,000 - $10,000') || budget.includes('$10,000 - $25,000')) {
+          return 'Great for mid-tier creators (200K-1M subscribers)';
+        } else if (budget.includes('$25,000') || budget.includes('$50,000')) {
+          return 'Perfect for larger creators (1M+ subscribers)';
+        }
+        return null;
+      });
+      
+      // Generate strategy points based on campaign inputs
+      const strategyPoints = computed(() => {
+        if (!props.campaignInputs) return [];
+        
+        const points = [];
+        const budget = props.campaignInputs.budget || '';
+        const timeline = props.campaignInputs.timeline || '';
+        const goals = props.campaignInputs.goals || '';
+        
+        // Budget-based recommendations
+        if (budget.includes('$1,000 - $5,000')) {
+          points.push('Focus on 5-10 micro-influencers for broader reach with lower budget');
+          points.push('Prioritize engagement rates over subscriber count for better ROI');
+        } else if (budget.includes('$5,000 - $10,000')) {
+          points.push('Balance between mid-tier creators and micro-influencers for optimal impact');
+          points.push('Allocate 60% of budget to top performers, 40% to experimental creators');
+        } else if (budget.includes('$10,000 - $25,000')) {
+          points.push('Invest in 3-5 mid-tier creators with proven track records');
+          points.push('Allocate budget for production quality improvements and potential exclusivity');
+        } else if (budget.includes('$25,000 - $50,000') || budget.includes('$50,000+')) {
+          points.push('Partner with 1-2 premium creators (1M+ subscribers) as campaign anchors');
+          points.push('Supplement with mid-tier creators for comprehensive coverage');
+        }
+        
+        // Timeline recommendations
+        if (timeline.includes('1-2 weeks')) {
+          points.push('Plan for quick turnaround content like unboxings and first impressions');
+        } else if (timeline.includes('1 month')) {
+          points.push('Aim for a mix of quick content and more detailed reviews/tutorials');
+        } else if (timeline.includes('2-3 months')) {
+          points.push('Develop multi-part series and before/after content to show long-term value');
+        } else if (timeline.includes('3-6 months') || timeline.includes('6+')) {
+          points.push('Structure as a phased campaign with initial reviews and follow-up content');
+        }
+        
+        // Goal-based points
+        if (goals.toLowerCase().includes('brand awareness')) {
+          points.push('Prioritize creators with larger audiences to maximize reach');
+        }
+        if (goals.toLowerCase().includes('sales') || goals.toLowerCase().includes('conversion')) {
+          points.push('Focus on creators with high engagement and conversion track records');
+        }
+        if (goals.toLowerCase().includes('engagement') || goals.toLowerCase().includes('community')) {
+          points.push('Select creators with highly engaged communities and strong comment sections');
+        }
+        if (goals.toLowerCase().includes('product launch') || goals.toLowerCase().includes('new product')) {
+          points.push('Create buzz with teaser content leading up to full reviews at launch');
+        }
+        
+        // Return 3-5 strategic points
+        return points.slice(0, 5);
+      });
       
       // Check if we have all expected properties
       console.log("Campaign data received in ResponseSection:", props.campaignData);
@@ -250,101 +365,62 @@
       };
       
       const loadMoreOldFormatCreators = () => {
-        const totalCreators = props.campaignData.recommendedCreators.length;
         // Increase by 3 or show all remaining
+        const totalCreators = props.campaignData.recommendedCreators.length;
         oldFormatVisibleCount.value = Math.min(oldFormatVisibleCount.value + 3, totalCreators);
       };
       
-      // Determine budget fit CSS class
+      // Helper function for getting the right CSS class for budget fit
       const getBudgetFitClass = (budgetFit) => {
-        if (!budgetFit) return 'budget-fit-medium';
-        
-        if (budgetFit.toLowerCase().includes('high')) {
-          return 'budget-fit-high';
-        } else if (budgetFit.toLowerCase().includes('low')) {
-          return 'budget-fit-low';
+        if (!budgetFit) return '';
+        const lowerBudgetFit = budgetFit.toLowerCase();
+        if (lowerBudgetFit.includes('high')) {
+          return 'high-fit';
+        } else if (lowerBudgetFit.includes('medium')) {
+          return 'medium-fit';
         } else {
-          return 'budget-fit-medium';
+          return 'low-fit';
         }
       };
       
-      // Validate data structure
-      const validateData = () => {
-        const { videoIdeas, trackingMetrics, keysToSuccess } = props.campaignData;
-        
-        // Check if all required arrays exist
-        const hasVideoIdeas = Array.isArray(videoIdeas);
-        const hasMetrics = Array.isArray(trackingMetrics);
-        const hasKeys = Array.isArray(keysToSuccess);
-        
-        console.log('ResponseSection data validation:', {
-          hasVideoIdeas,
-          hasMetrics,
-          hasKeys,
-          videoIdeasCount: hasVideoIdeas ? videoIdeas.length : 0,
-          metricsCount: hasMetrics ? trackingMetrics.length : 0,
-          keysCount: hasKeys ? keysToSuccess.length : 0,
-          hasCategories: hasCreatorCategories.value,
-          hasOldCreators: hasOldFormatCreators.value
-        });
+      // Truncate text to a certain length
+      const truncateText = (text, maxLength) => {
+        if (!text) return '';
+        if (text.length <= maxLength) return text;
+        return text.substring(0, maxLength) + '...';
       };
       
-      // Validate on setup
-      validateData();
-      
-      // Initialize visible counts
-      initializeVisibleCounts();
-      
-      // Handler for contacting a creator
+      // Contact creator handler
       const onContactCreator = (creator) => {
         emit('contact-creator', creator);
       };
       
-      // Auto-scroll to the response when it's generated
-      watch(() => props.campaignData, (newData) => {
-        if (newData && responseContainer.value) {
-          // Reset visible counts when data changes
-          initializeVisibleCounts();
-          oldFormatVisibleCount.value = 3;
-          
-          // Small delay to ensure the DOM is updated
-          setTimeout(() => {
-            responseContainer.value.scrollIntoView({ 
-              behavior: 'smooth', 
-              block: 'start' 
-            });
-          }, 200);
-        }
-      }, { immediate: true });
-      
-      // When component is mounted, scroll to it if data is already available
+      // Initialize visible counts when component is mounted
       onMounted(() => {
         initializeVisibleCounts();
-        
-        if (props.campaignData && 
-            props.campaignData.videoIdeas && 
-            props.campaignData.videoIdeas.length > 0 &&
-            responseContainer.value) {
-          responseContainer.value.scrollIntoView({ 
-            behavior: 'smooth', 
-            block: 'start' 
-          });
-        }
       });
+      
+      // Watch for changes in campaign data and recalculate visible counts
+      watch(() => props.campaignData, () => {
+        initializeVisibleCounts();
+      }, { deep: true });
       
       return {
         responseContainer,
-        onContactCreator,
-        isDevelopment,
         hasCreatorCategories,
         hasOldFormatCreators,
-        getBudgetFitClass,
         getVisibleCreators,
         hasMoreCreators,
         loadMoreCreators,
         getVisibleOldFormatCreators,
         hasMoreOldFormatCreators,
-        loadMoreOldFormatCreators
+        loadMoreOldFormatCreators,
+        getBudgetFitClass,
+        onContactCreator,
+        isDevelopment,
+        budgetRecommendation,
+        strategyPoints,
+        truncateText
       };
     }
   };
@@ -352,68 +428,81 @@
   
   <style scoped>
   .response-section {
-    background-color: white;
-    border-radius: 8px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-    overflow-y: auto;
     width: 100%;
-    max-height: none;
-    scroll-behavior: smooth;
   }
   
   .response-content {
-    padding: 20px;
     display: flex;
     flex-direction: column;
     gap: 20px;
   }
   
+  .campaign-header {
+    text-align: center;
+    margin-bottom: 10px;
+  }
+  
+  .campaign-header h2 {
+    font-size: 1.8rem;
+    color: var(--primary-color);
+    margin: 0;
+    padding-bottom: 15px;
+    position: relative;
+  }
+  
+  .campaign-header h2::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 80px;
+    height: 3px;
+    background-color: var(--primary-color);
+    border-radius: 1.5px;
+  }
+  
   .response-card {
-    width: 100%;
-    background-color: #f5f5f5;
-    padding: 25px;
-    border-radius: 8px;
-    margin-bottom: 15px;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    background-color: white;
+    border-radius: var(--border-radius);
+    padding: 20px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    transition: all 0.3s ease;
+  }
+  
+  .response-card:hover {
+    box-shadow: 0 4px 12px rgba(0,0,0,0.12);
   }
   
   .response-card h3 {
-    margin-bottom: 18px;
-    color: #282828;
-    border-bottom: 2px solid #ff0000;
+    margin-top: 0;
+    margin-bottom: 15px;
+    font-size: 1.2rem;
+    color: var(--secondary-color);
+    border-bottom: 1px solid #eee;
     padding-bottom: 10px;
-    font-size: 1.3em;
   }
   
   .response-card ul {
-    list-style-position: inside;
-    padding-left: 15px;
+    margin: 0;
+    padding-left: 20px;
   }
   
   .response-card li {
-    margin-bottom: 12px;
+    margin-bottom: 10px;
     line-height: 1.5;
+  }
+  
+  .empty-message {
+    color: var(--dark-gray);
+    font-style: italic;
+    margin: 10px 0;
   }
   
   .creator-categories-section {
     display: flex;
     flex-direction: column;
-    gap: 25px;
-  }
-  
-  .creator-category-card h3 {
-    display: flex;
-    align-items: center;
-  }
-  
-  .creator-category-card h3::before {
-    content: "";
-    display: inline-block;
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    background-color: var(--primary-color);
-    margin-right: 10px;
+    gap: 20px;
   }
   
   .creators-list {
@@ -423,112 +512,87 @@
   }
   
   .creator-item {
-    padding: 20px;
-    background-color: white;
-    border-radius: 8px;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
+    border: 1px solid #eee;
+    border-radius: var(--border-radius);
+    padding: 15px;
+    background-color: #fafafa;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    position: relative;
+  }
+  
+  .creator-item:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.08);
   }
   
   .creator-header {
     display: flex;
-    flex-direction: column;
-    gap: 8px;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+    flex-wrap: wrap;
+    gap: 10px;
   }
   
   .creator-header h4 {
     margin: 0;
+    font-size: 1.1rem;
     color: var(--secondary-color);
-    font-size: 1.1em;
   }
   
   .creator-stats {
     display: flex;
     gap: 15px;
-    margin-top: 4px;
   }
   
   .stat-item {
     display: flex;
     align-items: center;
     gap: 5px;
-    font-size: 0.9em;
+    font-size: 0.9rem;
     color: var(--dark-gray);
   }
   
-  .stat-icon {
-    font-size: 1.1em;
-  }
-  
-  .stat-value {
-    font-weight: 500;
-  }
-  
   .creator-description {
-    margin: 0;
-    font-size: 0.95em;
+    margin: 10px 0 15px;
+    font-size: 0.95rem;
     line-height: 1.5;
-    color: #555;
-  }
-  
-  .budget-fit {
-    font-size: 0.85em;
-    padding: 4px 8px;
-    border-radius: 12px;
-    display: inline-block;
-    font-weight: 500;
-    margin-top: 5px;
-  }
-  
-  .budget-fit-high {
-    background-color: #d4edda;
-    color: #155724;
-  }
-  
-  .budget-fit-medium {
-    background-color: #fff3cd;
-    color: #856404;
-  }
-  
-  .budget-fit-low {
-    background-color: #f8d7da;
-    color: #721c24;
+    color: #333;
   }
   
   .creator-footer {
     display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-top: 5px;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 15px;
   }
   
   .channel-link {
-    color: var(--primary-color);
-    text-decoration: none;
-    font-weight: 500;
-    font-size: 0.9em;
     display: flex;
     align-items: center;
-    gap: 4px;
-    transition: color 0.2s;
+    gap: 6px;
+    color: #1a73e8;
+    font-size: 0.9rem;
+    text-decoration: none;
+    padding: 8px 12px;
+    border-radius: var(--border-radius);
+    transition: background-color 0.2s;
   }
   
   .channel-link:hover {
-    color: #cc0000;
+    background-color: rgba(26, 115, 232, 0.1);
     text-decoration: underline;
   }
   
   .contact-btn {
-    padding: 8px 12px;
     background-color: var(--primary-color);
     color: white;
     border: none;
-    border-radius: 4px;
+    padding: 8px 12px;
+    border-radius: var(--border-radius);
     cursor: pointer;
-    font-size: 14px;
-    transition: background-color 0.3s;
+    font-size: 0.9rem;
+    transition: background-color 0.2s;
   }
   
   .contact-btn:hover {
@@ -538,66 +602,140 @@
   .load-more-container {
     display: flex;
     justify-content: center;
-    margin-top: 15px;
+    margin-top: 10px;
   }
   
   .load-more-btn {
-    background-color: transparent;
-    border: 1px dashed var(--dark-gray);
-    color: var(--dark-gray);
-    padding: 10px 20px;
-    border-radius: 4px;
-    cursor: pointer;
     display: flex;
     align-items: center;
-    gap: 8px;
-    font-size: 0.9em;
-    transition: all 0.3s;
+    gap: 5px;
+    background-color: transparent;
+    border: 1px solid #ddd;
+    padding: 8px 15px;
+    border-radius: 20px;
+    color: var(--dark-gray);
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: all 0.2s;
   }
   
   .load-more-btn:hover {
-    background-color: #f8f9fa;
-    border-color: var(--primary-color);
-    color: var(--primary-color);
+    background-color: #f5f5f5;
+    border-color: #ccc;
   }
   
   .load-more-icon {
-    font-size: 1.2em;
-    font-weight: bold;
+    font-size: 1.1rem;
+    line-height: 1;
   }
   
-  .empty-message {
-    color: #6c757d;
+  .budget-fit {
+    display: inline-block;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    margin-top: 5px;
+  }
+  
+  .high-fit {
+    background-color: #d4edda;
+    color: #155724;
+  }
+  
+  .medium-fit {
+    background-color: #fff3cd;
+    color: #856404;
+  }
+  
+  .low-fit {
+    background-color: #f8d7da;
+    color: #721c24;
+  }
+  
+  /* Strategy Summary Card Styles - NEW */
+  .strategy-summary-card {
+    border-left: 4px solid var(--primary-color);
+  }
+  
+  .strategy-summary {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+  }
+  
+  .strategy-item {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+  
+  .strategy-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+    color: var(--secondary-color);
+  }
+  
+  .strategy-icon {
+    font-size: 1.2rem;
+  }
+  
+  .strategy-value {
+    padding-left: 30px;
+    color: #333;
+    line-height: 1.5;
+  }
+  
+  .strategy-note {
+    padding-left: 30px;
+    font-size: 0.9rem;
+    color: var(--dark-gray);
     font-style: italic;
-    padding: 10px 0;
+    margin-top: 2px;
   }
   
-  .campaign-header {
-    background: linear-gradient(to right, var(--primary-color), #cc0000);
-    padding: 25px 20px;
+  .strategy-recommendations {
+    margin-top: 10px;
+    background-color: #f9f9f9;
     border-radius: var(--border-radius);
-    margin-bottom: 25px;
-    position: relative;
+    padding: 15px;
   }
   
-  .campaign-header::after {
-    content: "";
-    position: absolute;
-    bottom: -12px;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 60px;
-    height: 4px;
-    background-color: var(--primary-color);
-    border-radius: 2px;
+  .strategy-recommendations h4 {
+    margin: 0 0 10px 0;
+    color: var(--primary-color);
+    font-size: 1.1rem;
   }
   
-  .campaign-header h2 {
-    color: white;
+  .strategy-points {
     margin: 0;
-    text-align: center;
-    font-size: 1.8em;
-    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
-    letter-spacing: 0.5px;
+    padding-left: 25px;
+  }
+  
+  .strategy-points li {
+    margin-bottom: 8px;
+    line-height: 1.5;
+  }
+  
+  @media (max-width: 768px) {
+    .creator-header {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+    
+    .creator-stats {
+      margin-top: 5px;
+    }
+    
+    .creator-footer {
+      flex-direction: column;
+      align-items: stretch;
+    }
+    
+    .channel-link, .contact-btn {
+      text-align: center;
+    }
   }
   </style>

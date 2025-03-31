@@ -74,10 +74,7 @@
   <template>
     <div class="product-analyzer" v-if="url && url.trim() !== ''">
       <div v-if="isLoading" class="analyzer-loading">
-        <div class="loading-animation">
-          <div class="dot-pulse"></div>
-        </div>
-        <p class="loading-title">Analyzing product with AI...</p>
+        <LoadingSpinner message="Analyzing product with AI..." />
         <p class="loading-detail">Examining URL and extracting marketing insights</p>
       </div>
       
@@ -110,7 +107,7 @@
             <span class="info-value">{{ productInfo.extractedInfo.estimatedPrice }}</span>
           </div>
           
-          <div class="info-item">
+          <div class="info-item target-audience-item">
             <span class="info-label">Target Audience:</span>
             <span class="info-value">{{ productInfo.extractedInfo.targetDemographic }}</span>
           </div>
@@ -126,7 +123,7 @@
         </div>
         
         <div class="info-section">
-          <h4>Recommended YouTube Creator Categories</h4>
+          <h4>Recommended Creator Categories</h4>
           <ul class="category-list">
             <li v-for="(category, index) in getCreatorCategories(productInfo.extractedInfo)" 
                 :key="'category-'+index"
@@ -185,14 +182,17 @@
   </template>
   
   <script>
-  import { ref, watch, getCurrentInstance } from 'vue';
+  import { ref, watch, inject } from 'vue';
   import { fetchProductInfo } from '../utils/apiUtils';
   import DebugOutput from './DebugOutput.vue';
+  import LoadingSpinner from './LoadingSpinner.vue';
+  import { getApiKey } from '../utils/envConfig';
   
   export default {
     name: 'ProductAnalyzer',
     components: {
-      DebugOutput
+      DebugOutput,
+      LoadingSpinner
     },
     props: {
       url: {
@@ -202,6 +202,7 @@
     },
     emits: ['analysis-complete', 'api-status'],
     setup(props, { emit }) {
+      const config = inject('config') || {};
       const isLoading = ref(false);
       const error = ref(null);
       const productInfo = ref(null);
@@ -225,17 +226,11 @@
         error.value = null;
         
         try {
-          // Get API key from app config
-          const instance = getCurrentInstance();
-          let apiKey = instance?.appContext.config.globalProperties.$googleApiKey || '';
-          
-          // If not in app config, try localStorage
-          if (!apiKey) {
-            apiKey = localStorage.getItem('geminiApiKey');
-          }
+          // Get API key from env config
+          const apiKey = getApiKey();
           
           if (!apiKey) {
-            console.warn('No Gemini API key found. Please add an API key in the API Status section.');
+            console.warn('No Gemini API key found. Using mock data instead.');
           }
           
           // Analyze product using Gemini AI
@@ -248,34 +243,34 @@
             emit('analysis-complete', { success: false, error: info.error });
           } else {
             productInfo.value = info;
-            error.value = null;
             emit('analysis-complete', { success: true, data: info });
-            
-            console.log('Product analysis complete:', info.analysisSource);
-            if (info.analysisSource === 'mock') {
-              console.warn('Using mock data - no API key or API error occurred');
-            }
           }
         } catch (err) {
-          console.error('Product analysis error:', err);
-          error.value = 'Failed to analyze product';
-          productInfo.value = null;
-          emit('analysis-complete', { success: false, error: 'Failed to analyze product' });
+          console.error('Error analyzing product:', err);
+          error.value = err.message || 'Failed to analyze product';
+          emit('analysis-complete', { success: false, error: error.value });
         } finally {
           isLoading.value = false;
         }
       };
       
-      const isValidUrl = (string) => {
+      // Retry analysis
+      const retryAnalysis = () => {
+        error.value = null;
+        analyzeProduct(props.url);
+      };
+      
+      // Check if the URL is valid
+      const isValidUrl = (url) => {
         try {
-          new URL(string);
+          new URL(url);
           return true;
-        } catch (_) {
+        } catch {
           return false;
         }
       };
       
-      // Toggle debug output display
+      // Toggle debug output visibility
       const toggleDebugOutput = () => {
         showDebugOutput.value = !showDebugOutput.value;
       };
@@ -285,106 +280,64 @@
         showDebugOutput.value = false;
       };
       
-      // Retry the analysis
-      const retryAnalysis = () => {
-        if (props.url) {
-          analyzeProduct(props.url);
+      // Helper to get creator categories
+      const getCreatorCategories = (info) => {
+        const categories = [];
+        
+        // Get creator categories from the recommended creator types field
+        if (info.recommendedCreatorTypes && Array.isArray(info.recommendedCreatorTypes)) {
+          categories.push(...info.recommendedCreatorTypes);
         }
+        
+        // If no categories found, generate generic categories based on product type
+        if (categories.length === 0 && info.category) {
+          const productType = info.category.toLowerCase();
+          
+          if (productType.includes('tech') || productType.includes('electronic')) {
+            categories.push('Tech Reviewers', 'Gadget Enthusiasts', 'Unboxing Channels');
+          } else if (productType.includes('beauty') || productType.includes('cosmetic')) {
+            categories.push('Beauty Vloggers', 'Makeup Artists', 'Skincare Influencers');
+          } else if (productType.includes('fashion') || productType.includes('clothing')) {
+            categories.push('Fashion Influencers', 'Style Gurus', 'Lifestyle Vloggers');
+          } else if (productType.includes('food') || productType.includes('kitchen')) {
+            categories.push('Food Channels', 'Cooking Tutorials', 'Kitchen Gadget Reviewers');
+          } else if (productType.includes('fitness') || productType.includes('sport')) {
+            categories.push('Fitness Channels', 'Workout Instructors', 'Health & Wellness Creators');
+          } else if (productType.includes('game') || productType.includes('gaming')) {
+            categories.push('Gaming Channels', 'Game Reviewers', 'Lets Play Creators');
+          } else if (productType.includes('home') || productType.includes('decor')) {
+            categories.push('Home Decor Channels', 'DIY Creators', 'Interior Design Experts');
+          } else {
+            // Generic categories
+            categories.push('Product Reviewers', 'Lifestyle Vloggers', 'How-To Channels');
+          }
+        }
+        
+        return categories;
       };
       
-      // Check API status and emit event to parent
+      // Check API status
       const checkApiStatus = () => {
         emit('api-status');
       };
       
-      // Watch for URL changes
-      watch(() => props.url, (newUrl, oldUrl) => {
-        console.log(`URL changed from: "${oldUrl}" to: "${newUrl}"`);
-        
-        // Only process if the URL is not empty and has actually changed
-        if (newUrl && newUrl.trim() !== '' && newUrl !== oldUrl) {
-          console.log('Triggering new product analysis for URL:', newUrl);
-          
-          // Reset previous results
-          productInfo.value = null;
-          error.value = null;
-          showDebugOutput.value = false;
-          
-          // Start new analysis
+      // Watch URL changes
+      watch(() => props.url, (newUrl) => {
+        if (newUrl && newUrl.trim() !== '') {
           analyzeProduct(newUrl);
-        } else if (!newUrl || newUrl.trim() === '') {
-          // Clear results if URL is empty
-          productInfo.value = null;
-          error.value = null;
         }
       }, { immediate: true });
       
-      // Force analysis of the current URL
-      const forceAnalysis = () => {
-        if (props.url) {
-          console.log('Force analyzing URL:', props.url);
-          // Reset previous results
-          productInfo.value = null;
-          error.value = null;
-          showDebugOutput.value = false;
-          
-          // Start new analysis
-          analyzeProduct(props.url);
-        }
-      };
-      
-      // Add this method to the setup function in the script section
-      const getCreatorCategories = (extractedInfo) => {
-        // If we already have categories, use them
-        if (extractedInfo.creatorCategories && Array.isArray(extractedInfo.creatorCategories)) {
-          return extractedInfo.creatorCategories;
-        }
-        
-        // If we have creator data but not categories, generate categories based on creators
-        if (extractedInfo.recommendedCreators && Array.isArray(extractedInfo.recommendedCreators) && extractedInfo.recommendedCreators.length > 0) {
-          // Extract common categories based on product type
-          const productType = extractedInfo.category || '';
-          
-          // Define basic categories based on the product type
-          const categories = [];
-          
-          if (productType.toLowerCase().includes('tech') || productType.toLowerCase().includes('electronics')) {
-            categories.push('Tech Reviewers', 'Unboxing Channels', 'Tech Tutorial Creators');
-          } else if (productType.toLowerCase().includes('beauty') || productType.toLowerCase().includes('cosmetic')) {
-            categories.push('Beauty Influencers', 'Makeup Tutorials', 'Skincare Reviewers');
-          } else if (productType.toLowerCase().includes('fitness') || productType.toLowerCase().includes('sport')) {
-            categories.push('Fitness Trainers', 'Health & Wellness Channels', 'Active Lifestyle Vloggers');
-          } else if (productType.toLowerCase().includes('food') || productType.toLowerCase().includes('cook')) {
-            categories.push('Food Reviewers', 'Cooking Channels', 'Culinary Explorers');
-          } else {
-            // Generic categories
-            categories.push(
-              'Lifestyle Vloggers', 
-              'Product Reviewers', 
-              'How-to & Tutorial Creators', 
-              'Niche Influencers'
-            );
-          }
-          
-          return categories;
-        }
-        
-        return [];
-      };
-      
-      // Expose forceAnalysis to parent
-      // Note: defineExpose would be better in Vue 3, but we'll use return for compatibility
       return {
         isLoading,
         error,
         productInfo,
         showDebugOutput,
+        retryAnalysis,
         toggleDebugOutput,
         hideDebugOutput,
-        retryAnalysis,
-        checkApiStatus,
-        forceAnalysis,
-        getCreatorCategories
+        getCreatorCategories,
+        checkApiStatus
       };
     }
   };
@@ -392,14 +345,29 @@
   
   <style scoped>
   .product-analyzer {
-    margin-top: 20px;
-    background-color: #f8f9fa;
-    border-radius: 8px;
-    padding: 15px;
-    border: 1px solid #e9ecef;
+    width: 100%;
+    background-color: white;
+    border-radius: var(--border-radius);
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    padding: 25px;
+    margin-bottom: 20px;
   }
   
   .analyzer-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 40px 20px;
+    text-align: center;
+  }
+  
+  .loading-detail {
+    color: var(--dark-gray);
+    margin-top: 10px;
+    font-size: 0.9rem;
+  }
+  
+  .analyzer-error {
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -407,207 +375,100 @@
     text-align: center;
   }
   
-  .loading-title {
-    margin: 15px 0 5px;
-    font-size: 1.1em;
-    font-weight: 500;
-    color: #333;
-  }
-  
-  .loading-detail {
-    font-size: 0.9em;
-    color: #6c757d;
-    margin-top: 5px;
-  }
-  
-  .loading-animation {
-    margin-bottom: 10px;
-  }
-  
-  /* Dot Pulse Animation */
-  .dot-pulse {
-    position: relative;
-    left: -9999px;
-    width: 10px;
-    height: 10px;
-    border-radius: 5px;
-    background-color: #ff0000;
-    color: #ff0000;
-    box-shadow: 9999px 0 0 -5px;
-    animation: dot-pulse 1.5s infinite linear;
-    animation-delay: 0.25s;
-  }
-  
-  .dot-pulse::before, .dot-pulse::after {
-    content: "";
-    display: inline-block;
-    position: absolute;
-    top: 0;
-    width: 10px;
-    height: 10px;
-    border-radius: 5px;
-    background-color: #ff0000;
-    color: #ff0000;
-  }
-  
-  .dot-pulse::before {
-    box-shadow: 9984px 0 0 -5px;
-    animation: dot-pulse-before 1.5s infinite linear;
-    animation-delay: 0s;
-  }
-  
-  .dot-pulse::after {
-    box-shadow: 10014px 0 0 -5px;
-    animation: dot-pulse-after 1.5s infinite linear;
-    animation-delay: 0.5s;
-  }
-  
-  @keyframes dot-pulse-before {
-    0% {
-      box-shadow: 9984px 0 0 -5px;
-    }
-    30% {
-      box-shadow: 9984px 0 0 2px;
-    }
-    60%, 100% {
-      box-shadow: 9984px 0 0 -5px;
-    }
-  }
-  
-  @keyframes dot-pulse {
-    0% {
-      box-shadow: 9999px 0 0 -5px;
-    }
-    30% {
-      box-shadow: 9999px 0 0 2px;
-    }
-    60%, 100% {
-      box-shadow: 9999px 0 0 -5px;
-    }
-  }
-  
-  @keyframes dot-pulse-after {
-    0% {
-      box-shadow: 10014px 0 0 -5px;
-    }
-    30% {
-      box-shadow: 10014px 0 0 2px;
-    }
-    60%, 100% {
-      box-shadow: 10014px 0 0 -5px;
-    }
-  }
-  
-  .analyzer-error {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    text-align: center;
-    padding: 20px;
-    border-radius: 8px;
-    background-color: #fff3f5;
-    border: 1px solid #ffe3e6;
-  }
-  
   .error-icon {
     color: #dc3545;
-    margin-bottom: 10px;
+    margin-bottom: 15px;
   }
   
   .error-message {
-    color: #dc3545;
     font-weight: 500;
-    margin-bottom: 8px;
+    margin-bottom: 10px;
+    color: #dc3545;
   }
   
   .error-tip {
-    font-size: 0.85em;
-    color: #6c757d;
-    margin: 0 0 15px 0;
-    max-width: 80%;
+    color: var(--dark-gray);
+    font-size: 0.9rem;
+    margin-bottom: 20px;
   }
   
   .retry-btn {
-    padding: 8px 15px;
-    background-color: #f8f9fa;
-    border: 1px solid #ced4da;
-    border-radius: 4px;
-    color: #495057;
-    font-size: 0.9em;
+    background-color: var(--primary-color);
+    color: white;
+    border: none;
+    border-radius: var(--border-radius);
+    padding: 8px 20px;
     cursor: pointer;
-    transition: all 0.2s;
+    font-weight: 500;
+    transition: background-color 0.2s;
   }
   
   .retry-btn:hover {
-    background-color: #e9ecef;
+    background-color: #e50000;
   }
   
-  .analyzer-results h3 {
-    margin-bottom: 15px;
-    color: #282828;
-    border-bottom: 2px solid #ff0000;
-    padding-bottom: 8px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-  }
-  
-  .analyzer-results h3::after {
+  h3[data-source]::after {
     content: attr(data-source);
     font-size: 0.7em;
-    background-color: #ff0000;
-    color: white;
+    background-color: var(--light-gray);
     padding: 3px 8px;
     border-radius: 12px;
+    margin-left: 10px;
+    color: var(--dark-gray);
     font-weight: normal;
-  }
-  
-  .analyzer-results h3[data-source="Mock Data"]::after {
-    background-color: #6c757d;
+    vertical-align: middle;
   }
   
   .info-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-    gap: 10px;
-    margin-bottom: 15px;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 15px;
+    margin: 20px 0;
   }
   
   .info-item {
-    padding: 8px;
-    background-color: white;
-    border-radius: 4px;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+    display: flex;
+    flex-direction: column;
+    padding: 12px;
+    background-color: var(--light-gray);
+    border-radius: var(--border-radius);
+  }
+  
+  .target-audience-item {
+    grid-column: span 2;
+  }
+  
+  @media (max-width: 768px) {
+    .info-grid {
+      grid-template-columns: 1fr;
+    }
+    
+    .target-audience-item {
+      grid-column: span 1;
+    }
   }
   
   .info-label {
-    font-weight: 500;
-    color: #495057;
-    margin-right: 5px;
+    font-size: 0.8rem;
+    color: var(--dark-gray);
+    margin-bottom: 5px;
   }
   
   .info-value {
-    color: #212529;
+    font-weight: 500;
   }
   
   .info-section {
-    margin-bottom: 15px;
-    background-color: white;
-    padding: 12px;
-    border-radius: 4px;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+    margin-bottom: 20px;
   }
   
   .info-section h4 {
-    font-size: 1em;
-    margin-bottom: 8px;
-    color: #495057;
-    padding-bottom: 4px;
-    border-bottom: 1px solid #e9ecef;
+    margin-bottom: 10px;
+    color: var(--secondary-color);
+    font-size: 1.1rem;
   }
   
   .info-section ul {
-    list-style-type: disc;
     padding-left: 20px;
   }
   
@@ -615,55 +476,118 @@
     margin-bottom: 5px;
   }
   
-  .analyzer-note {
-    font-size: 0.85em;
-    color: #6c757d;
+  .category-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    list-style: none;
+    padding: 0;
+  }
+  
+  .category-item {
+    background-color: var(--light-gray);
+    padding: 6px 12px;
+    border-radius: 15px;
+    font-size: 0.9rem;
+  }
+  
+  .empty-message {
+    color: var(--dark-gray);
     font-style: italic;
+  }
+  
+  .analyzer-note {
     display: flex;
     align-items: center;
     justify-content: space-between;
-  }
-  
-  .analyzer-note:before {
-    content: "";
-    display: inline-block;
-    width: 16px;
-    height: 16px;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%236c757d' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'%3E%3C/circle%3E%3Cline x1='12' y1='16' x2='12' y2='12'%3E%3C/line%3E%3Cline x1='12' y1='8' x2='12.01' y2='8'%3E%3C/line%3E%3C/svg%3E");
-    margin-right: 5px;
+    font-size: 0.85rem;
+    color: var(--dark-gray);
+    margin-top: 20px;
+    padding-top: 15px;
+    border-top: 1px solid #eee;
   }
   
   .debug-btn {
-    background-color: transparent;
-    border: 1px solid #ced4da;
-    color: #6c757d;
+    padding: 3px 8px;
+    background-color: var(--light-gray);
+    border: none;
     border-radius: 4px;
-    padding: 3px 6px;
-    font-size: 0.75em;
+    color: var(--dark-gray);
+    font-size: 0.85rem;
     cursor: pointer;
-    transition: all 0.2s ease;
   }
   
   .debug-btn:hover {
     background-color: #e9ecef;
+  }
+  
+  .mock-note {
+    background-color: #fff3cd;
+    border: 1px solid #ffeeba;
+    padding: 8px 12px;
+    border-radius: 4px;
+    margin-top: 15px;
+  }
+  
+  .mock-warning {
+    color: #856404;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+  
+  .api-check-btn {
+    padding: 3px 8px;
+    background-color: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
     color: #495057;
+    font-size: 0.8em;
+    cursor: pointer;
+    transition: all 0.2s;
   }
   
-  .category-list {
-    list-style-type: disc;
-    padding-left: 20px;
+  .api-check-btn:hover {
+    background-color: #e9ecef;
+  }
+  
+  .analyzer-url {
     margin-top: 10px;
+    font-size: 0.9em;
+    padding: 8px 12px;
+    background-color: #f8f9fa;
+    border-radius: 4px;
+    border: 1px solid #e9ecef;
+    word-break: break-all;
   }
   
-  .category-item {
-    margin-bottom: 8px;
-    font-size: 0.95em;
-    color: #333;
+  .url-label {
+    font-weight: 500;
+    color: #495057;
+    margin-right: 5px;
   }
   
-  .empty-message {
-    font-size: 0.85em;
-    color: #6c757d;
-    margin-top: 10px;
+  .url-value {
+    color: #007bff;
+    text-decoration: none;
+  }
+  
+  .url-value:hover {
+    text-decoration: underline;
+  }
+  
+  .analyzer-results {
+    animation: fadeIn 0.5s ease-in-out;
+  }
+  
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
   </style>
