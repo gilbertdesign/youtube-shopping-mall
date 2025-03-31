@@ -193,9 +193,9 @@ class GoogleAIService {
       {
         "categoryName": "Category 1 (e.g., Tech Reviewers)",
         "creators": [
-          {
-            "name": "Creator name 1",
-            "description": "Detailed description about why this creator is a good fit",
+      {
+        "name": "Creator name 1",
+        "description": "Detailed description about why this creator is a good fit",
             "channelUrl": "YouTube channel URL",
             "subscribers": "1.2M subscribers",
             "averageViews": "150K views",
@@ -356,9 +356,9 @@ class GoogleAIService {
             categoryName: category.categoryName || 'Recommended Creators',
             creators: Array.isArray(category.creators) ? category.creators
               .filter(creator => creator && typeof creator === 'object')
-              .map(creator => ({
-                name: creator.name || 'Unknown Creator',
-                description: creator.description || 'No description provided',
+          .map(creator => ({
+            name: creator.name || 'Unknown Creator',
+            description: creator.description || 'No description provided',
                 channelUrl: creator.channelUrl || 'https://youtube.com',
                 subscribers: creator.subscribers || '500K subscribers',
                 averageViews: creator.averageViews || '150K',
@@ -954,7 +954,7 @@ class GoogleAIService {
         };
       });
     }
-}
+  }
   
-// Export the class
-export default GoogleAIService;
+  // Export the class
+  export default GoogleAIService;
